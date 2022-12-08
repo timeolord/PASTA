@@ -257,16 +257,28 @@ end
   ╠═╡ =#
 
 # ╔═╡ 9ecd59ea-174b-4ad0-b943-d05566088bc3
+# ╠═╡ disabled = true
+#=╠═╡
 #@btime PBLAST(query) samples=10
+  ╠═╡ =#
 
 # ╔═╡ f7470de9-4a5a-4395-b2c5-ccf91734824b
+# ╠═╡ disabled = true
+#=╠═╡
 #range
+  ╠═╡ =#
 
 # ╔═╡ 623e3c50-8d86-418f-98c2-7a9c9da769bd
+# ╠═╡ disabled = true
+#=╠═╡
 #pairalign(LocalAlignment(), query, subject, score_model)
+  ╠═╡ =#
 
 # ╔═╡ 0035cbb3-6f3b-4e04-aa2c-d125b8baffbe
+# ╠═╡ disabled = true
+#=╠═╡
 #@benchmark find_alignment($query, $subject, $probs) samples=5000
+  ╠═╡ =#
 
 # ╔═╡ 5153c32d-2881-4461-9077-3476ced37798
 # ╠═╡ disabled = true
@@ -574,9 +586,9 @@ end
 # ╔═╡ 4980de9a-b1c8-49b0-9db2-bc38f76b13ee
 function close_match(query_range, result)
 	len = length(query_range) * close_match_percent
-	r = Int(floor(first(query_range) - len - 1)):Int(ceil(first(query_range) + len))
-	@show first(result.range) r
-	(first(result.range) in (first(query_range) - len - 1):(first(query_range) + len)) || (last(result.range) in (last(query_range) - len - 1):(last(query_range) + len))
+	r1 = Int(floor(first(query_range) - len - 1)):Int(ceil(first(query_range) + len))
+	r2 = Int(floor(last(query_range) - len - 1)):Int(ceil(last(query_range) + len))
+	(first(result.range) in r1) || (last(result.range) in r2)
 end
 
 # ╔═╡ cf34efa1-87ab-4094-a667-cf679f6edecf
