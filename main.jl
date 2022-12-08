@@ -232,6 +232,30 @@ function prob_word_score2(query, word, probability)
 end
   ╠═╡ =#
 
+# ╔═╡ 0100a578-9f44-41a0-b0f0-dc2332d42325
+# ╠═╡ disabled = true
+#=╠═╡
+function find_alignment2(query, seed_index, sequence_index)
+	seq_start = first(sequence_index) + (seed_index - 1)
+	seq_end = first(sequence_index) + (seed_index - 1) + length(query) - 1
+	seq_range = seq_start:seq_end
+	subject = @view sequence[seq_range]
+	probs = @view probabilites[seq_range]
+	#(prob_word_score(query, subject, probs), seq_range)
+	alignment_ = pairalign(GlobalAlignment(), query, subject, score_model)
+	(BioAlignments.score(alignment_), seq_range)
+end
+  ╠═╡ =#
+
+# ╔═╡ 99b513ff-9928-4aba-8818-502c9136cbb0
+#=╠═╡
+function find_alignments2(query, word_index, seq_indices)
+	filtered_indices = filter!(x->first(x) + word_index + length(query) < length(sequence), seq_indices)
+	alignments = map(seq_index -> find_alignment2(query, word_index, seq_index), filtered_indices)
+	maximum(alignments, init = (-Inf, []))
+end
+  ╠═╡ =#
+
 # ╔═╡ 9ecd59ea-174b-4ad0-b943-d05566088bc3
 #@btime PBLAST(query) samples=10
 
@@ -343,14 +367,13 @@ end
 begin
 	const scoring_matrix::SubstitutionMatrix{DNA, Int64} = EDNAFULL
 	#const scoring_matrix = DichotomousSubstitutionMatrix(1, -1)
-	const gap_cost = -5
-	const score_model::AffineGapScoreModel{Int64} =  AffineGapScoreModel(EDNAFULL, gap_open=gap_cost, gap_extend=gap_cost)
-	const query_length_range::UnitRange{Int} = 100:500
+	#const gap_cost = -5
+	#const score_model::AffineGapScoreModel{Int64} =  AffineGapScoreModel(EDNAFULL, gap_open=gap_cost, gap_extend=gap_cost)
+	const query_length_range::UnitRange{Int} = 10:100
 	const word_size::Int = 5
-	const permutation_threshold::Float64 = 0.9
-	const T_score_threshold::Int = 18
+	#const T_score_threshold::Int = 18
 	const S_score_cutoff::Int = 0
-	const query_mutations_percent = 0
+	const query_mutations_percent = 0.08
 	const close_match_percent = 0.25
 end
 
@@ -378,6 +401,8 @@ function non_prob_word_score(query, word)
 end
 
 # ╔═╡ c485200c-8637-45f9-85e6-df399758a09e
+# ╠═╡ disabled = true
+#=╠═╡
 if T_score_threshold == 18 && word_size == 5
 	function find_high_scoring_words(query)
 		query
@@ -387,6 +412,7 @@ else
 		filter(x->non_prob_word_score(query, x) > T_score_threshold, keys(blast_db))
 	end
 end
+  ╠═╡ =#
 
 # ╔═╡ a1dc1cb0-58c5-44cf-8256-33d19c97b231
 function prob_word_score(query, word, probability)
@@ -405,31 +431,32 @@ function prob_word_score(query, word, probability)
 end
 
 # ╔═╡ 8b7aab0c-3690-4549-b840-e704ad1b70e4
-if T_score_threshold == 18 && word_size == 5
-	function find_seeds(query)
-		seeds = []
-		for range in blast_db[query]
-			seq = sequence[range]
-			prob = probabilites[range]
-			if prob_word_score(query, seq, prob) > T_score_threshold
-				push!(seeds, range)
-			end
-		end
-		seeds
-	end
-else
-	function find_seeds(query)
-		high_score_words = find_high_scoring_words(query)
-	
-		blast_seqs = Iterators.flatten(blast_db[query] for query in high_score_words)
-		@chain blast_seqs begin
-			map(x->(sequence[x], probabilites[x], x), _)
-			map(a->(prob_word_score(query, a[1], a[2]), last(a)), _)
-			filter!(x->first(x) > T_score_threshold, _)
-			last.()
+function find_seeds(query)
+	seeds = []
+	for range in blast_db[query]
+		seq = sequence[range]
+		prob = probabilites[range]
+		if prob_word_score(query, seq, prob) > S_score_cutoff
+			push!(seeds, range)
 		end
 	end
+	seeds
 end
+
+# ╔═╡ 7e3d62bb-0892-4e5a-991c-0fbbfd7b2ae9
+#=╠═╡
+function PBLAST_max2(query)
+	words_list = to_words(query) |> collect
+	alignments_list = Array{Tuple{Float64, UnitRange{Int64}}}(undef, length(words_list))
+	Threads.@threads for i in 1:length(words_list)
+		(word_index, query_word) = words_list[i]
+		seeds = find_seeds(query_word)
+		alignments_list[i] = find_alignments2(query, word_index, seeds)
+	end
+	(a, b) = maximum(alignments_list)
+	(score = a, range = b, sequence = sequence[b])
+end
+  ╠═╡ =#
 
 # ╔═╡ 554206ee-5a38-47c3-9c68-d92fafbd6401
 function find_alignment(query, seed_index, sequence_index)
@@ -484,45 +511,6 @@ function PBLAST_list(queries; results_n)
 		[PBLAST(query, results_n = results_n) for query in queries]
 	end
 end
-
-# ╔═╡ 0100a578-9f44-41a0-b0f0-dc2332d42325
-# ╠═╡ disabled = true
-#=╠═╡
-function find_alignment2(query, seed_index, sequence_index)
-	seq_start = first(sequence_index) + (seed_index - 1)
-	seq_end = first(sequence_index) + (seed_index - 1) + length(query) - 1
-	seq_range = seq_start:seq_end
-	subject = @view sequence[seq_range]
-	probs = @view probabilites[seq_range]
-	#(prob_word_score(query, subject, probs), seq_range)
-	alignment_ = pairalign(GlobalAlignment(), query, subject, score_model)
-	(BioAlignments.score(alignment_), seq_range)
-end
-  ╠═╡ =#
-
-# ╔═╡ 99b513ff-9928-4aba-8818-502c9136cbb0
-#=╠═╡
-function find_alignments2(query, word_index, seq_indices)
-	filtered_indices = filter!(x->first(x) + word_index + length(query) < length(sequence), seq_indices)
-	alignments = map(seq_index -> find_alignment2(query, word_index, seq_index), filtered_indices)
-	maximum(alignments, init = (-Inf, []))
-end
-  ╠═╡ =#
-
-# ╔═╡ 7e3d62bb-0892-4e5a-991c-0fbbfd7b2ae9
-#=╠═╡
-function PBLAST_max2(query)
-	words_list = to_words(query) |> collect
-	alignments_list = Array{Tuple{Float64, UnitRange{Int64}}}(undef, length(words_list))
-	Threads.@threads for i in 1:length(words_list)
-		(word_index, query_word) = words_list[i]
-		seeds = find_seeds(query_word)
-		alignments_list[i] = find_alignments2(query, word_index, seeds)
-	end
-	(a, b) = maximum(alignments_list)
-	(score = a, range = b, sequence = sequence[b])
-end
-  ╠═╡ =#
 
 # ╔═╡ 373d13c9-c11f-4a03-8ea5-5aef62471c4c
 # ╠═╡ disabled = true
@@ -586,6 +574,8 @@ end
 # ╔═╡ 4980de9a-b1c8-49b0-9db2-bc38f76b13ee
 function close_match(query_range, result)
 	len = length(query_range) * close_match_percent
+	r = Int(floor(first(query_range) - len - 1)):Int(ceil(first(query_range) + len))
+	@show first(result.range) r
 	(first(result.range) in (first(query_range) - len - 1):(first(query_range) + len)) || (last(result.range) in (last(query_range) - len - 1):(last(query_range) + len))
 end
 
@@ -714,7 +704,7 @@ function accuracy_test(seed, query_n)
 end
 
 # ╔═╡ 24aba1f1-186f-4a11-ad23-5dd6477e881d
-accuracy_test(0, 100)
+@time accuracy_test(0, 100)
 
 # ╔═╡ fd65ecce-d273-4551-8f77-213ea12d386a
 begin
