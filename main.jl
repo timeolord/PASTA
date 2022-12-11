@@ -52,7 +52,7 @@ begin
 end
 
 # ╔═╡ a802edf8-10c7-4986-9892-e0bfd522a21f
-const no_match = (-Inf, 1:1)
+const no_match = (-Inf, LongDNA{2}(), LongDNA{2}(), 1:1)
 
 # ╔═╡ 4af62ee8-f649-400f-8182-1ac42ded6ae5
 begin
@@ -257,6 +257,18 @@ function prob_word_score(query, word, probability)
 		sum
 	end
 	sum(scoring(q, w, p) for (q, w, p) in zip(query, word, probability))
+end
+  ╠═╡ =#
+
+# ╔═╡ 5dcf0fff-8bf9-4de3-a78a-58cbc5d4f52f
+# ╠═╡ disabled = true
+#=╠═╡
+function scoring(q, w, p)
+	if q == DNA_Gap || w == DNA_Gap
+		gap_cost
+	else 
+		scoring_matrix[q, w] * p
+	end
 end
   ╠═╡ =#
 
@@ -584,12 +596,12 @@ begin
 	const indel_probability = 0.1
 	const top_N = 10
 	#const scoring_matrix = DichotomousSubstitutionMatrix(1, -1)
-	const gap_cost = -3
+	#const gap_cost = -100
 	#const score_model::AffineGapScoreModel{Int64} =  AffineGapScoreModel(EDNAFULL, gap_open=gap_cost, gap_extend=gap_cost)
-	const query_length_range::UnitRange{Int} = 10:20
-	const word_size::Int = 11
+	const query_length_range::UnitRange{Int} = 100:1000
+	const word_size::Int = 22
 	#const T_score_threshold::Int = 18
-	const alignment_gaps = 10
+	const alignment_gaps_percent = 0.1
 	const S_score_cutoff::Int = 0
 	const query_mutations_percent = 0
 	const close_match_percent = 0.25
@@ -616,6 +628,17 @@ const blast_db = generate_blast_db()
 # ╔═╡ c0158950-9a2e-42d3-8d82-3249cad660a2
 function non_prob_word_score(query, word)
 	sum(scoring_matrix[q, w] for (q, w) in zip(query, word))
+end
+
+# ╔═╡ a441ab40-9769-4005-aa83-beaa51860538
+function scoring(q, w, p)
+	if q == w
+		log(p + 1)
+	elseif q == DNA_Gap || w == DNA_Gap
+		log(indel_probability + 1)
+	else 
+		log((1 - p)/3 + 1)
+	end
 end
 
 # ╔═╡ 9bb0bd07-3a68-492a-9e48-7dc3b4a06c93
@@ -650,12 +673,17 @@ function find_alignment(query, seed_index, sequence_index)
 	
 	results = []
 	q = LongDNA{4}(query[1:end])
-	push!(results, (prob_word_score(q, subject, probs), Tuple{}()))
-	println(q)
-	println(subject)
-	println("")
-	for gap_count in 1:alignment_gaps
-		min_val, min_index = findmin(((q, w, p),) -> if q == DNA_Gap || w ==DNA_Gap Inf else scoring(q, w, p) end, zip(q, subject, probs) |> collect)
+	score = prob_word_score(q, subject, probs)
+	push!(results, (score, q, subject, seq_range))
+	#println(q)
+	#println(subject)
+	#println("")
+	for gap_count in 1:ceil(length(query) * alignment_gaps_percent)
+		#min_index = findfirst( ((a, b),) -> a != b, zip(q, subject) |> collect)
+		#if min_index === nothing
+		#	return maximum(results)
+		#end
+		min_val, min_index = findmin(((q, w, p),) -> if q == DNA_Gap || w == DNA_Gap Inf else scoring(q, w, p) end, zip(q, subject, probs) |> collect)
 		
 		#add gap to db
 
@@ -677,13 +705,13 @@ function find_alignment(query, seed_index, sequence_index)
 		insert!(q_query_gap, min_index, DNA_Gap)
 		score_query_gap = prob_word_score(q_query_gap, subject_gap, probs_gap)
 		
-		println(q_db_gap)
-		println(subject_gap)
-		println(score_db_gap)
-		println(q_query_gap)
-		println(subject_no_gap)
-		println(score_query_gap)
-		println("")
+		#println(q_db_gap)
+		#println(subject_gap)
+		#println(score_db_gap)
+		#println(q_query_gap)
+		#println(subject_no_gap)
+		#println(score_query_gap)
+		#println("")
 
 		#find best fit
 		gap_type = :D
@@ -707,7 +735,7 @@ function find_alignment(query, seed_index, sequence_index)
 		if score < S_score_cutoff 
 		return maximum(results)
 		end
-		push!(results, (score, q, subject, probs, seq_range))
+		push!(results, (score, q, subject, seq_range))
 	end
 	maximum(results)
 
@@ -721,7 +749,7 @@ end
 
 # ╔═╡ 69559e82-65ee-4986-95f7-eead25f83e56
 function find_alignments(query, word_index, seq_indices)
-	filtered_indices = filter!(x->first(x) - word_index + length(query) < length(sequence) && first(x) > word_index + 1, seq_indices)  #idil  ?????? changed + word_index to - 
+	filtered_indices = filter!(x->first(x) - word_index + (length(query) * (alignment_gaps_percent + 1)) < length(sequence) && first(x) > word_index + 1, seq_indices)  #idil  ?????? changed + word_index to - 
 	#filtered_indices = filter!(x->, filtered_indices) ## idil ADDED THIS 
 	alignments = map(seq_index -> find_alignment(query, word_index, seq_index), filtered_indices)
 	maximum(alignments, init = no_match)
@@ -730,7 +758,7 @@ end
 # ╔═╡ 8544b283-d57c-4ba3-a9a0-529032a3f006
 function PBLAST_core(query)
 	words_list = to_words(query) |> collect
-	alignments_list = Array{Tuple{Float64, UnitRange{Int64}}}(undef, length(words_list))
+	alignments_list = Array{Tuple{Float64, LongDNA{4}, LongDNA{4}, UnitRange{Int64}}}(undef, length(words_list))
 	Threads.@threads for i in 1:length(words_list)
 		@inbounds (word_index, query_word) = words_list[i]
 		seeds = find_seeds(query_word)
@@ -744,14 +772,14 @@ function PBLAST(query; results_n=50)
 	alignments_list = PBLAST_core(query)
 	top_list = Iterators.take(sort!(alignments_list, rev=true), results_n) |> collect
 	filter!(x->first(x)!=1:1, top_list)
-	map(((a, b),) -> (score = a, range = b, sequence = sequence[b]), top_list)
+	map(((a, s1, s2, r),) -> (score = a, range = r, query = s1, sequence = s2), top_list)
 end
 
 # ╔═╡ 88fe623f-6163-4e8e-8e34-5ce967c84ae2
 function PBLAST_max(query)
 	alignments_list = PBLAST_core(query)
-	(a, b) = maximum(alignments_list)
-	(score = a, range = b, sequence = sequence[b])
+	(a, s1, s2, r) = maximum(alignments_list)
+	(score = a, range = r, query = s1, sequence = s2)
 end
 
 # ╔═╡ 8fa9fd5c-ebd9-46c5-9695-471aef7b156c
@@ -790,6 +818,9 @@ function matches(queries, results)
 	end
 	map(match, queries, results)
 end
+
+# ╔═╡ 2ee19eca-99b7-4271-b520-cffd38d09287
+@time accuracy_test(0, 100)
 
 # ╔═╡ 5baedc9a-654b-4b96-8150-324ecf94c4ee
 function mutate!(sequence)
@@ -872,14 +903,14 @@ function accuracy_test(seed, query_n)
 	#(max_accuracy, top_5_accuracy)
 end
 
-# ╔═╡ 2ee19eca-99b7-4271-b520-cffd38d09287
-@time accuracy_test(0, 1000)
-
 # ╔═╡ fd65ecce-d273-4551-8f77-213ea12d386a
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	Random.seed!(0)
 	generate_queries(1)
 end
+  ╠═╡ =#
 
 # ╔═╡ af40cee4-e0eb-4764-b658-a2ff4d71d95e
 # ╠═╡ disabled = true
@@ -891,29 +922,6 @@ end
 # ╠═╡ disabled = true
 #=╠═╡
 @time PBLAST_list(queries, results_n = 1)
-  ╠═╡ =#
-
-# ╔═╡ 5dcf0fff-8bf9-4de3-a78a-58cbc5d4f52f
-function scoring(q, w, p)
-	if q == DNA_Gap || w == DNA_Gap
-		gap_cost
-	else 
-		scoring_matrix[q, w] * p
-	end
-end
-
-# ╔═╡ a441ab40-9769-4005-aa83-beaa51860538
-# ╠═╡ disabled = true
-#=╠═╡
-function scoring(q, w, p)
-	if q == w
-		p
-	elseif q == DNA_Gap || w == DNA_Gap
-		indel_probability
-	else 
-		(1 - p)/3
-	end
-end
   ╠═╡ =#
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
