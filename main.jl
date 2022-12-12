@@ -10,7 +10,6 @@ begin
 	using Dictionaries
 	using Random
 	using StatsBase
-	#using BenchmarkTools
 	using Unzip
 	using Parameters
 	using ProfileSVG
@@ -67,27 +66,6 @@ function windows(sequence, step_size, window_size)
     ((@view sequence[i:i+window_size-1]) for i in 1:step_size:length(sequence)-window_size+1)
 end
 
-# ╔═╡ 4c4979f3-dd90-4744-8c55-8eca1f9ccbea
-# ╠═╡ disabled = true
-#=╠═╡
-struct ProbabilisticNucleotide
-	nucleotide::DNA
-	probability::Float64
-end
-  ╠═╡ =#
-
-# ╔═╡ 6db80ce9-4c47-4672-b0c6-7b81424ceb71
-#=╠═╡
-Base.show(io::IO, x::ProbabilisticNucleotide) = print(io, x.nucleotide, " ", x.probability)
-  ╠═╡ =#
-
-# ╔═╡ 57c5982a-1df9-4cc2-9d46-537cd31e2d68
-#=╠═╡
-function Base.show(io::IO, ::MIME"text/plain", x::ProbabilisticNucleotide)
-	print(io, x.nucleotide, " ", x.probability)
-end
-  ╠═╡ =#
-
 # ╔═╡ f4857a38-02bb-4c02-89d4-aa4906229b3e
 function to_int(DNA) 
 	if DNA == DNA_A
@@ -115,465 +93,6 @@ function sample_range(sequence, probabilities)
 		sample(nucleotides, ProbabilityWeights(probability(character, prob))), sequence, probabilities)
 end
 
-# ╔═╡ eb97c760-a32f-42d5-8c7b-f9138b576fe2
-# ╠═╡ disabled = true
-#=╠═╡
-function permutations(hyperparameters)
-	[[Nucleotide(a) for a in Tuple(index)] for index in CartesianIndices(tuple(fill(4, hyperparameters.word_size)...))]
-end
-  ╠═╡ =#
-
-# ╔═╡ 61b0eb60-f1c4-4067-9d70-ee181dd64a36
-# ╠═╡ disabled = true
-#=╠═╡
-@with_kw struct Hyperparameters
-	query_length_range::UnitRange{Int} = 10:100
-	word_size::Int = 5
-	permutation_threshold::Float64 = 0.9
-	score_threshold::Int = 18
-	data_base_score::AffineGapScoreModel{Int64} =  AffineGapScoreModel(EDNAFULL, gap_open=-500, gap_extend=-100)
-	scoring_matrix = EDNAFULL
-end
-  ╠═╡ =#
-
-# ╔═╡ 3220651e-c49b-4cc6-b76d-26790451affc
-# ╠═╡ disabled = true
-#=╠═╡
-function prob_word_score2(query, word, probability, hyperparameters)
-	sum(hyperparameters.scoring_matrix[q, w] * p for (q, w, p) in zip(query, word, probability))
-end
-  ╠═╡ =#
-
-# ╔═╡ c485200c-8637-45f9-85e6-df399758a09e
-# ╠═╡ disabled = true
-#=╠═╡
-if T_score_threshold == 18 && word_size == 5
-	function find_high_scoring_words(query)
-		query
-	end
-else
-	function find_high_scoring_words(query)
-		filter(x->non_prob_word_score(query, x) > T_score_threshold, keys(blast_db))
-	end
-end
-  ╠═╡ =#
-
-# ╔═╡ b5d3d606-91d6-454c-846b-81c744914042
-# ╠═╡ disabled = true
-#=╠═╡
-function find_high_scoring_words2(query)
-	filter(x->non_prob_word_score(query, x) > score_threshold, keys(blast_db))
-end
-  ╠═╡ =#
-
-# ╔═╡ 699cfd94-5271-4aaa-8bae-5772324f58a3
-# ╠═╡ disabled = true
-#=╠═╡
-struct SeedIterator
-	length::Int
-	query::DNAKmer{word_size}
-end
-  ╠═╡ =#
-
-# ╔═╡ 3559f2e9-9a00-44f7-bc7e-1c05eab7af27
-#=╠═╡
-function Base.iterate(x::SeedIterator)
-	index = 0
-	range = blast_db[x.query][index]
-	seq = @view sequence[range]
-	prob = @view probabilites[range]
-	while prob_word_score(x.query, seq, prob) < score_threshold
-		index += 1
-		if index > x.length
-			return nothing
-		end
-		range = blast_db[x.query][index]
-		seq = @view sequence[range]
-		prob = @view probabilites[range]
-	end
-	(range, index + 1)
-end
-  ╠═╡ =#
-
-# ╔═╡ ef8a4d03-e6fb-4e8e-9a8c-54f0ac2d8c7f
-#=╠═╡
-function Base.iterate(x::SeedIterator, i)
-	index = i
-	range = blast_db[x.query][index]
-	seq = @view sequence[range]
-	prob = @view probabilites[range]
-	while prob_word_score(x.query, seq, prob) < score_threshold
-		index += 1
-		if index > x.length
-			return nothing
-		end
-		range = blast_db[x.query][index]
-		seq = @view sequence[range]
-		prob = @view probabilites[range]
-	end
-	(range, index + 1)
-end
-  ╠═╡ =#
-
-# ╔═╡ fa9cfa41-26d6-4817-a063-ca4e46b91f44
-# ╠═╡ disabled = true
-#=╠═╡
-function find_seeds2(query)
-		SeedIterator(length(blast_db[query]), query)
-end
-	
-  ╠═╡ =#
-
-# ╔═╡ fdff2519-1b53-45a4-ad00-8bb4a382bf9d
-# ╠═╡ disabled = true
-#=╠═╡
-function find_seeds3(query)
-		function is_seed(range)
-			seq = @view sequence[range]
-			prob = @view probabilites[range]
-			if prob_word_score(query, seq, prob) > score_threshold
-				true
-			else
-				false
-			end
-		end
-		filter(is_seed, @lazy blast_db[query])
-	end
-  ╠═╡ =#
-
-# ╔═╡ a1dc1cb0-58c5-44cf-8256-33d19c97b231
-# ╠═╡ disabled = true
-#=╠═╡
-function prob_word_score(query, word, probability)
-	function scoring(q, w, p)
-		sum = 0
-		for nucleotide in nucleotides
-			if nucleotide == w
-				@inbounds sum += scoring_matrix[q, nucleotide] * p
-			else
-				# sum += scoring_matrix[q, nucleotide] * (1 - p)/3
-			end
-		end
-		sum
-	end
-	sum(scoring(q, w, p) for (q, w, p) in zip(query, word, probability))
-end
-  ╠═╡ =#
-
-# ╔═╡ 5dcf0fff-8bf9-4de3-a78a-58cbc5d4f52f
-# ╠═╡ disabled = true
-#=╠═╡
-function scoring(q, w, p)
-	if q == DNA_Gap || w == DNA_Gap
-		gap_cost
-	else 
-		scoring_matrix[q, w] * p
-	end
-end
-  ╠═╡ =#
-
-# ╔═╡ 5edbf28f-6f4d-41c8-ac83-3427f4d15be3
-# ╠═╡ disabled = true
-#=╠═╡
-# test score with q: CATAGCCACCTCATGACC
-# db1: CACAGCCACCTCAGGACC (should be higher) (70314:70331)
-# db2: CACAGCCGCCTCCCGCCC (should be 36.5) (423064:423081)
-
-# query sequence "AGGGGTGGAGGTATTC" taken from 542187:542202 "TGGGGAGGAGGGATTC" (score 50.75), but matched 95178:95193 (51.89)
-# query sequence "GGGGTGGGGTGTAGAATGG" taken from 94027:94045 (56.57), but matched 220299:220317 (57.14)
-
-
-begin
-	qry = dna"AGGGGTGGAGGTATTC"
-	qry_words = to_words(qry) |> collect
-	algn = Array{Tuple{Float64, UnitRange{Int64}}}(undef, length(qry_words))
-
-	@show prob_word_score(qry,sequence[542187:542202], probabilities[542187:542202])
-	# seeds = sort(Iterators.flatten(map(find_seeds, last.(qry_words))) |> collect)
-	# filter(x-> first(x) in 70314:70331, seeds)
-	@show sequence[95178:95193]
-	@show probabilities[542187:542202]
-	@show probabilities[95178:95193]
-
-
-	Threads.@threads for i in 1:length(qry_words)
-		(word_index, query_word) = qry_words[i]		
-		seeds = find_seeds(query_word) # seeds (when query word matches db)
-		# doesn't find alignment at 70314:70331 (check find_alignments)
-		algn[i] = find_alignments(qry, word_index, seeds)
-	end
-	for j in 1:length(qry_words)
-		#@show algn[j]
-	end
-end
-  ╠═╡ =#
-
-# ╔═╡ 93ff1c13-d4f4-400c-bdc2-d7bb1fa957c3
-# ╠═╡ disabled = true
-#=╠═╡
-# score of database seed 542187:542202 "TGGGGAGGAGGGATTC"
-# score of found match 95178:95193 
-begin
-qq = dna"AGGGGTGGAGGTATTC"
-total = 0
-for (q, n, p) in zip(qq, sequence[542187:542202], probabilities[542187:542202])
-	sum = 1 
-	for nucleotide in nucleotides
-		if nucleotide == n
-			sum *= scoring_matrix[q, nucleotide] * p
-		else
-			sum *= scoring_matrix[q, nucleotide] * (1 - p)/3 
-		end
-	end
-	total += sum
-end
-
-prod = 1
-for (q, n, p) in zip(qq, sequence[95178:95193 ], probabilities[95178:95193 ])
-	if q == n # match
-		@show prod *= p
-	else 
-		@show prod *= (1 - p)/3
-	end
-end
-	prod
-end
-
-
-  ╠═╡ =#
-
-# ╔═╡ 58be55eb-d107-4d20-b2f2-a084f83ae338
-# ╠═╡ disabled = true
-#=╠═╡
-function prob_word_score2(query, word, probability)
-	sum(Int(a == b) for (a, b) in zip(query.data, word.data))
-end
-  ╠═╡ =#
-
-# ╔═╡ b48c884a-79ab-48e0-a191-8a2a69911266
-# ╠═╡ disabled = true
-#=╠═╡
-
-  ╠═╡ =#
-
-# ╔═╡ d9491057-cedd-4ddf-9918-b36122fa1e16
-# ╠═╡ disabled = true
-#=╠═╡
-function find_alignment(query, seed_index, sequence_index)
-	seq_start = first(sequence_index) - (seed_index - 1) # idil changed + to - in middle
-	seq_end = first(sequence_index) - (seed_index - 1) + length(query) - 1 # idil again changed + to - in middle
-	seq_range = seq_start:seq_end
-	subject = @inbounds @view sequence[seq_range]
-	probs = @inbounds @view probabilities[seq_range]
-	(prob_word_score2(query, subject, probs), seq_range)
-	#alignment_ = pairalign(GlobalAlignment(), query, subject, score_model)
-	#(BioAlignments.score(alignment_), seq_range)
-end
-  ╠═╡ =#
-
-# ╔═╡ 0100a578-9f44-41a0-b0f0-dc2332d42325
-# ╠═╡ disabled = true
-#=╠═╡
-function find_alignment2(query, seed_index, sequence_index)
-	seq_start = first(sequence_index) + (seed_index - 1)
-	seq_end = first(sequence_index) + (seed_index - 1) + length(query) - 1
-	seq_range = seq_start:seq_end
-	subject = @view sequence[seq_range]
-	probs = @view probabilites[seq_range]
-	#(prob_word_score(query, subject, probs), seq_range)
-	alignment_ = pairalign(GlobalAlignment(), query, subject, score_model)
-	(BioAlignments.score(alignment_), seq_range)
-end
-  ╠═╡ =#
-
-# ╔═╡ 373d13c9-c11f-4a03-8ea5-5aef62471c4c
-# ╠═╡ disabled = true
-#=╠═╡
-function find_alignment3(query, seed_index, sequence_index)
-	seq_start = first(sequence_index) + (seed_index - 1)
-	seq_end = first(sequence_index) + (seed_index - 1) + length(query) - 1
-	seq_range = seq_start:seq_end
-	subject = @view sequence[seq_range]
-	probs = @view probabilites[seq_range]
-	
-	seed_start = seed_index
-	seed_end = seed_index + word_size - 1
-	#q = @view query[seed_start:seed_end]
-	q = Array{Union{Nothing, DNA}}(nothing, length(query))
-	#q::Array{Union{Nothing, DNA}} = fill(nothing, length(query))
-	for index in seed_start:seed_end
-		q[index] = query[index] 
-	end
-	score = prob_word_score(q, subject, probs)
-	
-	while score > S_score_cutoff
-		if seed_start != 1
-			seed_start -= 1
-		end
-		if seed_end != length(query)
-			seed_end += 1
-		end
-		q = @view query[seed_start:seed_end]
-		score = prob_word_score(q, subject, probs)
-	end
-	
-	(score, seq_range)
-end
-  ╠═╡ =#
-
-# ╔═╡ 497ed7bc-d724-4d77-96be-036b6131675d
-# ╠═╡ disabled = true
-#=╠═╡
-function seed_extension(query, seed_index, sequence_index)
-	seed_start = seed_index
-	seed_end = seed_index + word_size - 1
-	q = query[seed_index:seed_index + word_size - 1]
-	score = prob_word_score(q, subject, probs)
-	
-	while score > S_score_cutoff
-		left_gap = query[seed_index:seed_index + word_size]
-		pushfirst!(left_gap, DNA_Gap)
-		
-		right_gap = query[seed_index - 1:seed_index + word_size - 1]
-		push!(right_gap, DNA_Gap)
-		
-		both_gap = query[seed_index:seed_index + word_size - 1]
-		push!(both_gap, DNA_Gap)
-		pushfirst!(both_gap, DNA_Gap)
-		
-		if seed_start != 1
-			seed_start -= 1
-		end
-		if seed_end != length(query)
-			seed_end += 1
-		end
-		
-		no_gap = query[seed_index:seed_index + word_size - 1]
-	end
-end
-  ╠═╡ =#
-
-# ╔═╡ 99b513ff-9928-4aba-8818-502c9136cbb0
-#=╠═╡
-function find_alignments2(query, word_index, seq_indices)
-	filtered_indices = filter!(x->first(x) + word_index + length(query) < length(sequence), seq_indices)
-	alignments = map(seq_index -> find_alignment2(query, word_index, seq_index), filtered_indices)
-	maximum(alignments, init = (-Inf, []))
-end
-  ╠═╡ =#
-
-# ╔═╡ 22bca925-c356-4a4c-a963-d2ffb42af719
-#=╠═╡
-function find_alignments3(query, word_index, seq_indices)
-	filtered_indices = filter!(x->first(x) + word_index + length(query) < length(sequence), seq_indices)
-	alignments = map(seq_index -> find_alignment3(query, word_index, seq_index), filtered_indices)
-	maximum(alignments, init = (-Inf, []))
-end
-  ╠═╡ =#
-
-# ╔═╡ 7e3d62bb-0892-4e5a-991c-0fbbfd7b2ae9
-#=╠═╡
-function PBLAST_max2(query)
-	words_list = to_words(query) |> collect
-	alignments_list = Array{Tuple{Float64, UnitRange{Int64}}}(undef, length(words_list))
-	Threads.@threads for i in 1:length(words_list)
-		(word_index, query_word) = words_list[i]
-		seeds = find_seeds(query_word)
-		alignments_list[i] = find_alignments2(query, word_index, seeds)
-	end
-	(a, b) = maximum(alignments_list)
-	(score = a, range = b, sequence = sequence[b])
-end
-  ╠═╡ =#
-
-# ╔═╡ ae3725c3-0f0c-431c-8217-ca55c66aac05
-#=╠═╡
-function PBLAST_max3(query)
-	words_list = to_words(query) |> collect
-	alignments_list = Array{Tuple{Float64, UnitRange{Int64}}}(undef, length(words_list))
-	Threads.@threads for i in 1:length(words_list)
-		(word_index, query_word) = words_list[i]
-		seeds = find_seeds(query_word)
-		alignments_list[i] = find_alignments3(query, word_index, seeds)
-	end
-	(a, b) = maximum(alignments_list)
-	(score = a, range = b, sequence = sequence[b])
-end
-  ╠═╡ =#
-
-# ╔═╡ ea42ca53-d31f-4370-a350-1f1f9fde8f41
-# ╠═╡ disabled = true
-#=╠═╡
-function find_alignments2(query, word_index, seq_indices)
-	filtered_indices = filter!(x->first(x) + word_index + length(query) < length(sequence), seq_indices)
-	alignments = Array{Tuple{Float32, UnitRange{Int64}}}(undef, length(filtered_indices))
-	Threads.@threads for i in 1:length(filtered_indices)
-		seq_index = filtered_indices[i]
-		alignments[i] = find_alignment(query, word_index, seq_index)
-	end
-	#alignments = map(seq_index -> find_alignment(query, word_index, seq_index), filtered_indices)
-	maximum(alignments, init = (-Inf, []))
-end
-  ╠═╡ =#
-
-# ╔═╡ 6e2ed658-bc97-4749-8b84-243c534c7d34
-# ╠═╡ disabled = true
-#=╠═╡
-function find_alignments2(query, word_index, seq_indices)
-	filtered_indices = filter(x->first(x) + word_index + length(query) < length(sequence), seq_indices)
-	alignments = lazymap(seq_index -> find_alignment(query, word_index, seq_index), filtered_indices)
-	maximum(alignments, init = (-Inf, []))
-end
-  ╠═╡ =#
-
-# ╔═╡ 59a677a6-c2f4-4921-bcc8-dbe27242fc44
-# ╠═╡ disabled = true
-#=╠═╡
-function PBLAST_max(query)
-	words_list = to_words(query)
-	seeds = map(
-		((word_index, query_word),) -> 
-		(word_index, find_seeds(query_word)), words_list)
-	alignments = map(
-		((word_index, seq_indices),) ->
-		find_alignments(query, word_index, seq_indices), seeds)
-	(a, b) = maximum(alignments)
-	(score = a, range = b, sequence = sequence[b])
-end
-  ╠═╡ =#
-
-# ╔═╡ ed31ab1c-70ea-4f6d-9824-f4cb6f8dc48d
-# ╠═╡ disabled = true
-#=╠═╡
-function PBLAST_max2(query)
-	words_list = to_words(query) |> collect
-	alignments_list = Array{Tuple{Float64, UnitRange{Int64}}}(undef, length(words_list))
-	Threads.@threads for i in 1:length(words_list)
-		(word_index, query_word) = words_list[i]
-		seeds = find_seeds(query_word)
-		alignments_list[i] = find_alignments2(query, word_index, seeds)
-	end
-	(a, b) = maximum(alignments_list)
-	(score = a, range = b, sequence = sequence[b])
-end
-  ╠═╡ =#
-
-# ╔═╡ d13c8a85-e7d5-4a81-a70a-57b8ab6206a0
-# ╠═╡ disabled = true
-#=╠═╡
-function PBLAST_max2(query)
-	words_list = to_words(query)
-	seeds = lazymap(
-		((word_index, query_word),) -> 
-		(word_index, find_seeds3(query_word)), words_list)
-	alignments = lazymap(
-		((word_index, seq_indices),) ->
-		find_alignments2(query, word_index, seq_indices), seeds)
-	(a, b) = maximum(alignments)
-	(score = a, range = b, sequence = sequence[b])
-end
-  ╠═╡ =#
-
 # ╔═╡ 0c6c200f-732d-4831-95f4-5f977e7a2b48
 function perfect_match(query_range, result)
 	query_range == result.range
@@ -592,18 +111,17 @@ end
 # ╔═╡ ac9c68b3-0a7a-468d-9b84-9c4a668c3c32
 #Hyperparameters
 begin
-	const scoring_matrix::SubstitutionMatrix{DNA, Int64} = EDNAFULL # idil change from EDNAFULL
-	const indel_probability = 0.1
+	const scoring_matrix::SubstitutionMatrix{DNA, Int64} = EDNAFULL
 	const top_N = 10
-	#const scoring_matrix = DichotomousSubstitutionMatrix(1, -1)
-	#const gap_cost = -100
-	#const score_model::AffineGapScoreModel{Int64} =  AffineGapScoreModel(EDNAFULL, gap_open=gap_cost, gap_extend=gap_cost)
-	const query_length_range::UnitRange{Int} = 100:1000
-	const word_size::Int = 22
-	#const T_score_threshold::Int = 18
+	#const query_length_range::UnitRange{Int} = 100:500
+	#const word_size::Int = 35
+	#const S_score_cutoff::Float64 = 22
+	const query_length_range::UnitRange{Int} = 10:100
+	const word_size::Int = 11
+	const S_score_cutoff::Float64 = 7
+	const query_mutations_percent = 0.02
 	const alignment_gaps_percent = 0.1
-	const S_score_cutoff::Int = 0
-	const query_mutations_percent = 0
+	const indel_probability = 0.1
 	const close_match_percent = 0.25
 end
 
@@ -661,8 +179,8 @@ end
 
 # ╔═╡ 554206ee-5a38-47c3-9c68-d92fafbd6401
 function find_alignment(query, seed_index, sequence_index)
-	seq_start = first(sequence_index) - (seed_index - 1) # idil changed + to - in middle
-	seq_end = first(sequence_index) - (seed_index - 1) + length(query) - 1 # idil again changed + to - in middle
+	seq_start = first(sequence_index) - (seed_index - 1)
+	seq_end = first(sequence_index) - (seed_index - 1) + length(query) - 1
 	seq_range = seq_start:seq_end
 	subject = @inbounds LongDNA{4}(sequence[seq_range])
 	probs = @inbounds probabilities[seq_range]
@@ -675,14 +193,8 @@ function find_alignment(query, seed_index, sequence_index)
 	q = LongDNA{4}(query[1:end])
 	score = prob_word_score(q, subject, probs)
 	push!(results, (score, q, subject, seq_range))
-	#println(q)
-	#println(subject)
-	#println("")
-	for gap_count in 1:ceil(length(query) * alignment_gaps_percent)
-		#min_index = findfirst( ((a, b),) -> a != b, zip(q, subject) |> collect)
-		#if min_index === nothing
-		#	return maximum(results)
-		#end
+	
+	for gap_count in 1:Int(ceil(length(query) * alignment_gaps_percent))
 		min_val, min_index = findmin(((q, w, p),) -> if q == DNA_Gap || w == DNA_Gap Inf else scoring(q, w, p) end, zip(q, subject, probs) |> collect)
 		
 		#add gap to db
@@ -705,16 +217,7 @@ function find_alignment(query, seed_index, sequence_index)
 		insert!(q_query_gap, min_index, DNA_Gap)
 		score_query_gap = prob_word_score(q_query_gap, subject_gap, probs_gap)
 		
-		#println(q_db_gap)
-		#println(subject_gap)
-		#println(score_db_gap)
-		#println(q_query_gap)
-		#println(subject_no_gap)
-		#println(score_query_gap)
-		#println("")
-
 		#find best fit
-		gap_type = :D
 		if score_db_gap > score_query_gap
 			subject = subject_gap
 			probs = probs_gap
@@ -726,11 +229,7 @@ function find_alignment(query, seed_index, sequence_index)
 			q = q_query_gap
 			score = score_query_gap
 			seq_end += 1
-			gap_type = :Q
 		end
-	
-		#gaps_list = last(results[gap_count])[1:end]
-		#push!(gaps_list, (min_index, gap_type))
 		
 		if score < S_score_cutoff 
 		return maximum(results)
@@ -738,18 +237,11 @@ function find_alignment(query, seed_index, sequence_index)
 		push!(results, (score, q, subject, seq_range))
 	end
 	maximum(results)
-
-	
-	#(prob_word_score(query, subject, probs), seq_range)
-
-	
-	#alignment_ = pairalign(GlobalAlignment(), query, subject, score_model)
-	#(BioAlignments.score(alignment_), seq_range)
 end
 
 # ╔═╡ 69559e82-65ee-4986-95f7-eead25f83e56
 function find_alignments(query, word_index, seq_indices)
-	filtered_indices = filter!(x->first(x) - word_index + (length(query) * (alignment_gaps_percent + 1)) < length(sequence) && first(x) > word_index + 1, seq_indices)  #idil  ?????? changed + word_index to - 
+	filtered_indices = filter!(x->first(x) - word_index + Int(ceil(length(query) * (alignment_gaps_percent + 1))) < length(sequence) && first(x) > word_index + 1, seq_indices)  #idil  ?????? changed + word_index to - 
 	#filtered_indices = filter!(x->, filtered_indices) ## idil ADDED THIS 
 	alignments = map(seq_index -> find_alignment(query, word_index, seq_index), filtered_indices)
 	maximum(alignments, init = no_match)
@@ -819,9 +311,6 @@ function matches(queries, results)
 	map(match, queries, results)
 end
 
-# ╔═╡ 2ee19eca-99b7-4271-b520-cffd38d09287
-@time accuracy_test(0, 100)
-
 # ╔═╡ 5baedc9a-654b-4b96-8150-324ecf94c4ee
 function mutate!(sequence)
 	function insertion(sequence, index)
@@ -868,55 +357,21 @@ function generate_queries(queries)
 	(samples, ranges)
 end
 
-# ╔═╡ f21ab72e-42fc-428f-9d6d-ddebfe01c36a
-begin
-	Random.seed!(0)
-	probs = rand(0.8:0.01:1, word_size)
-	queries, ranges = generate_queries(1)
-	query = queries[1]
-	insert!(query, 3, DNA_A)
-end
-
-# ╔═╡ dddf7e91-1d4c-40e8-96bc-b18cb384fb29
-range = ranges[1]
-
-# ╔═╡ 28065c04-650e-4058-82e0-6a440ff0816c
-subject = sequence[first(range):last(range)]
-
-# ╔═╡ 0e686bdb-72f5-48be-b04d-0ce24756814b
-zip(query, subject) |> collect
-
-# ╔═╡ 50745be3-8539-48fa-9fd6-4d184ec30862
-begin
-	words = to_words(query) |> collect
-	find_alignment(query, 1, first(range))
-end
-
 # ╔═╡ 9b7d489f-959c-4b9c-ba81-1720abf2b85f
 function accuracy_test(seed, query_n)
 	Random.seed!(seed)
 	queries, ranges = generate_queries(query_n)
 	matches_ = PBLAST_list(queries, results_n = top_N)
 	matches_ = Iterators.filter(!isempty, matches_)
-	max_accuracy = proportionmap(matches(ranges, first.(matches_))) # first.(matches_)
-	#top_5_accuracy = proportionmap(map((r, matches)->r in [m.range for m in matches], ranges, matches_))
-	#(max_accuracy, top_5_accuracy)
+	max_accuracy = proportionmap(matches(ranges, first.(matches_)))
 end
 
-# ╔═╡ fd65ecce-d273-4551-8f77-213ea12d386a
-# ╠═╡ disabled = true
-#=╠═╡
+# ╔═╡ 2ee19eca-99b7-4271-b520-cffd38d09287
 begin
-	Random.seed!(0)
-	generate_queries(1)
+	accuracy_test(0, 1)
+	GC.gc() 
+	@time accuracy_test(0, 1000)
 end
-  ╠═╡ =#
-
-# ╔═╡ af40cee4-e0eb-4764-b658-a2ff4d71d95e
-# ╠═╡ disabled = true
-#=╠═╡
-@benchmark generate_queries(100) samples=50
-  ╠═╡ =#
 
 # ╔═╡ 28dbfc4b-63ea-4b10-822b-6e9e35dcfccc
 # ╠═╡ disabled = true
@@ -1415,57 +870,20 @@ version = "17.4.0+0"
 # ╠═4af62ee8-f649-400f-8182-1ac42ded6ae5
 # ╠═4d4578e4-4c67-45bd-a360-70193aae5d5e
 # ╠═5625822c-2030-4303-88d1-0c5e95cae278
-# ╟─4c4979f3-dd90-4744-8c55-8eca1f9ccbea
-# ╟─6db80ce9-4c47-4672-b0c6-7b81424ceb71
-# ╟─57c5982a-1df9-4cc2-9d46-537cd31e2d68
 # ╠═f4857a38-02bb-4c02-89d4-aa4906229b3e
 # ╠═9edfc292-0aa5-4e07-8381-d7d02ec1a09d
 # ╠═62d5b131-fd26-4225-8420-cd8b42a7200b
 # ╠═ccc968fa-f75f-4a30-90d1-cf0c97288ae0
 # ╠═c8948347-6cd9-41ab-aaf3-2e108ce02967
-# ╟─eb97c760-a32f-42d5-8c7b-f9138b576fe2
-# ╟─61b0eb60-f1c4-4067-9d70-ee181dd64a36
 # ╠═d43926d5-d305-4e12-bfc3-d72d6aa8c000
 # ╠═c0158950-9a2e-42d3-8d82-3249cad660a2
-# ╟─3220651e-c49b-4cc6-b76d-26790451affc
-# ╟─c485200c-8637-45f9-85e6-df399758a09e
-# ╟─b5d3d606-91d6-454c-846b-81c744914042
-# ╟─699cfd94-5271-4aaa-8bae-5772324f58a3
-# ╟─3559f2e9-9a00-44f7-bc7e-1c05eab7af27
-# ╟─ef8a4d03-e6fb-4e8e-9a8c-54f0ac2d8c7f
-# ╟─fa9cfa41-26d6-4817-a063-ca4e46b91f44
-# ╟─fdff2519-1b53-45a4-ad00-8bb4a382bf9d
 # ╠═8b7aab0c-3690-4549-b840-e704ad1b70e4
-# ╠═a1dc1cb0-58c5-44cf-8256-33d19c97b231
-# ╠═5dcf0fff-8bf9-4de3-a78a-58cbc5d4f52f
 # ╠═a441ab40-9769-4005-aa83-beaa51860538
 # ╠═9bb0bd07-3a68-492a-9e48-7dc3b4a06c93
-# ╟─5edbf28f-6f4d-41c8-ac83-3427f4d15be3
-# ╟─93ff1c13-d4f4-400c-bdc2-d7bb1fa957c3
-# ╟─58be55eb-d107-4d20-b2f2-a084f83ae338
-# ╠═b48c884a-79ab-48e0-a191-8a2a69911266
 # ╠═554206ee-5a38-47c3-9c68-d92fafbd6401
-# ╠═f21ab72e-42fc-428f-9d6d-ddebfe01c36a
-# ╠═dddf7e91-1d4c-40e8-96bc-b18cb384fb29
-# ╠═28065c04-650e-4058-82e0-6a440ff0816c
-# ╠═0e686bdb-72f5-48be-b04d-0ce24756814b
-# ╠═50745be3-8539-48fa-9fd6-4d184ec30862
-# ╠═d9491057-cedd-4ddf-9918-b36122fa1e16
-# ╟─0100a578-9f44-41a0-b0f0-dc2332d42325
-# ╟─373d13c9-c11f-4a03-8ea5-5aef62471c4c
-# ╟─497ed7bc-d724-4d77-96be-036b6131675d
-# ╟─99b513ff-9928-4aba-8818-502c9136cbb0
-# ╟─22bca925-c356-4a4c-a963-d2ffb42af719
-# ╟─7e3d62bb-0892-4e5a-991c-0fbbfd7b2ae9
-# ╟─ae3725c3-0f0c-431c-8217-ca55c66aac05
 # ╠═69559e82-65ee-4986-95f7-eead25f83e56
-# ╟─ea42ca53-d31f-4370-a350-1f1f9fde8f41
-# ╟─6e2ed658-bc97-4749-8b84-243c534c7d34
 # ╠═8544b283-d57c-4ba3-a9a0-529032a3f006
 # ╠═4870eeeb-cd46-41d4-98e7-f87af65b3f21
-# ╟─59a677a6-c2f4-4921-bcc8-dbe27242fc44
-# ╟─ed31ab1c-70ea-4f6d-9824-f4cb6f8dc48d
-# ╟─d13c8a85-e7d5-4a81-a70a-57b8ab6206a0
 # ╠═88fe623f-6163-4e8e-8e34-5ce967c84ae2
 # ╠═8fa9fd5c-ebd9-46c5-9695-471aef7b156c
 # ╠═0c6c200f-732d-4831-95f4-5f977e7a2b48
@@ -1478,8 +896,6 @@ version = "17.4.0+0"
 # ╠═2ee19eca-99b7-4271-b520-cffd38d09287
 # ╠═8006ffbb-e654-4aff-9666-6489cee1c35d
 # ╠═5baedc9a-654b-4b96-8150-324ecf94c4ee
-# ╠═fd65ecce-d273-4551-8f77-213ea12d386a
-# ╠═af40cee4-e0eb-4764-b658-a2ff4d71d95e
 # ╟─28dbfc4b-63ea-4b10-822b-6e9e35dcfccc
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
